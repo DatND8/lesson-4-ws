@@ -10,6 +10,11 @@
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.1272.0",
+    "elasticsearch": "^15.5.0",
+    "http-aws-es": "^6.0.0",
+    "jsonwebtoken": "^8.5.1",
+    "middy": "^0.25.0",
+    "jimp": "^0.16.2",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

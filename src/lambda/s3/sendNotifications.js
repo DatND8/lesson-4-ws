@@ -8,20 +8,31 @@ const apiId = process.env.API_ID
 
 const connectionParams = {
     apiVersion: "2018-11-29",
+    endpoint: `${apiId}.execute-api.us-east-1.amazonaws.com/${stage}`
 }
 
-const endpoint = `${apiId}.execution-api.us-east-1.amazonaws.com/${stage}`
+// const endpoint = `${apiId}.execution-api.us-east-1.amazonaws.com/${stage}`
 
-const awsEndPoint = new AWS.Endpoint(endpoint)
+// const awsEndPoint = new AWS.Endpoint(endpoint)
 
 const apiGateway = new AWS.ApiGatewayManagementApi(connectionParams)
 
-apiGateway.endpoint = awsEndPoint
-
-console.log(apiGateway.endpoint)
+// apiGateway.endpoint = awsEndPoint
 
 exports.handler = async (event) => {
-    for (const record of event.Records) {
+    console.log('Processing SNS event ', JSON.stringify(event))
+    for (const snsRecord of event.Records) {
+        const s3EventStr = snsRecord.Sns.Message
+        console.log('Processing S3 event', s3EventStr)
+        const s3Event = JSON.parse(s3EventStr)
+
+        await processS3Event(s3Event)
+    }
+}
+
+
+const processS3Event = async (s3Event) => {
+    for (const record of s3Event.Records) {
         const key = record.s3.object.key
         console.log('Processing S3 item with key: ', key);
 
@@ -43,6 +54,7 @@ exports.handler = async (event) => {
 async function sendMessageToClient(connectionId, payload) {
     try {
         console.log('Sending message to a connection', connectionId)
+        console.log(apiGateway.endpoint)
 
         await apiGateway.postToConnection({
             ConnectionId: connectionId,

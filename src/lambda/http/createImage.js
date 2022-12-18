@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk')
 const { v4: uuidv4 } = require('uuid');
+const { cors } = require('middy/middlewares')
 
 const docClient = new AWS.DynamoDB.DocumentClient()
 
@@ -13,54 +14,58 @@ const s3 = new AWS.S3({
     signatureVersion: 'v4'
 })
 
-exports.handler = async (event) => {
-    console.log('Caller event', event)
-    const groupId = event.pathParameters.groupId
-    const validGroupId = await groupExists(groupId)
+const handler = middy(
+    async (event) => {
+        console.log('Caller event', event)
+        const groupId = event.pathParameters.groupId
+        const validGroupId = await groupExists(groupId)
 
-    if (!validGroupId) {
+        if (!validGroupId) {
+            return {
+                statusCode: 404,
+                headers: {
+                    'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                    error: 'Group does not exist'
+                })
+            }
+        }
+
+        // TODO: Create an image
+        const parsedBody = JSON.parse(event.body)
+        const imageId = uuidv4();
+        const timestamp = new Date().toISOString();
+
+        const newItem = {
+            groupId,
+            timestamp,
+            imageId,
+            ...parsedBody,
+            imageUrl: `https://${bucketName}.s3.amazonaws.com/${imageId}`
+        }
+
+        const url = getUploadUrl(imageId)
+
+        await docClient.put({
+            TableName: imagesTable,
+            Item: newItem
+        }).promise();
+
         return {
-            statusCode: 404,
+            statusCode: 201,
             headers: {
                 'Access-Control-Allow-Origin': '*'
             },
             body: JSON.stringify({
-                error: 'Group does not exist'
+                item: newItem,
+                uploadUrl: url
             })
         }
     }
+)
 
-    // TODO: Create an image
-    const parsedBody = JSON.parse(event.body)
-    const imageId = uuidv4();
-    const timestamp = new Date().toISOString();
-
-    const newItem = {
-        groupId,
-        timestamp,
-        imageId,
-        ...parsedBody,
-        imageUrl: `https://${bucketName}.s3.amazonaws.com/${imageId}`
-    }
-
-    const url = getUploadUrl(imageId)
-
-    await docClient.put({
-        TableName: imagesTable,
-        Item: newItem
-    }).promise();
-
-    return {
-        statusCode: 201,
-        headers: {
-            'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify({
-            item: newItem,
-            uploadUrl: url
-        })
-    }
-}
+exports.handler = handler
 
 async function groupExists(groupId) {
     const result = await docClient
@@ -83,3 +88,9 @@ function getUploadUrl(imageId) {
         Expires: urlExpiration  // A URL is only valid for 5 minutes
     })
 }
+
+handler.use(
+    cors({
+        credentials: true
+    })
+)
